@@ -30,6 +30,9 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -172,6 +175,7 @@ public class LoginActivity extends AppCompatActivity {
     public class UserLoginTask extends AsyncTask<Void, Void, Boolean> {
 
         private final String mAccountNo;
+        private double mBalance;
 
         UserLoginTask(String accountNo) {
             mAccountNo = accountNo;
@@ -184,25 +188,35 @@ public class LoginActivity extends AppCompatActivity {
             try {
                 URL getBalanceURL = new URL("http://api.reimaginebanking.com/accounts/"+mAccountNo+"?key="+key);
                 HttpURLConnection conn = (HttpURLConnection) getBalanceURL.openConnection();
-                conn.setRequestMethod("POST");
+                conn.setRequestMethod("GET");
                 conn.setReadTimeout(10000);
                 conn.setConnectTimeout(15000);
                 conn.connect();
 
+                Log.d(LOG_TAG, "status code: "+conn.getResponseCode());
+
                 BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
                 String line = "";
-                /*while((line = reader.readLine()) != null) {
+                String responseBody = "";
+                while((line = reader.readLine()) != null) {
+                    responseBody += line;
+                }
 
-                }*/
+                JSONObject account = new JSONObject(responseBody);
+                mBalance = account.getDouble("balance");
+                return true;
             } catch (MalformedURLException e) {
                 Log.e(LOG_TAG, "You suck at copy-paste");
                 e.printStackTrace();
             } catch (IOException e) {
                 Log.e(LOG_TAG, "Couldn't open connection");
                 e.printStackTrace();
+            } catch (JSONException e) {
+                Log.e(LOG_TAG, "Couldn't parse JSON");
+                e.printStackTrace();
             }
 
-            return true;
+            return false;
         }
 
         @Override
@@ -211,7 +225,7 @@ public class LoginActivity extends AppCompatActivity {
             showProgress(false);
 
             if (success) {
-                mBalanceView.setText(mAccountNo);
+                mBalanceView.setText("Balance: $"+mBalance);
             } else {
                 mAccountView.setError(getString(R.string.error_invalid_password));
                 mAccountView.requestFocus();
