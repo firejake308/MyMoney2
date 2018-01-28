@@ -3,7 +3,16 @@ package com.insertcoolnamehere.mymoney;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.annotation.TargetApi;
+import android.app.job.JobInfo;
+import android.app.job.JobScheduler;
+import android.app.job.JobService;
+import android.appwidget.AppWidgetManager;
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.pm.PackageManager;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
+import android.os.PersistableBundle;
 import android.support.annotation.NonNull;
 import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
@@ -29,6 +38,7 @@ import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -56,6 +66,8 @@ public class LoginActivity extends AppCompatActivity {
      * Keep track of the login task to ensure we can cancel it if requested.
      */
     private UserLoginTask mAuthTask = null;
+    private JobScheduler mJobScheduler = null;
+    private final int UPDATE_BALANCE_JOB = 1;
 
     // UI references.
     private EditText mAccountView;
@@ -91,6 +103,8 @@ public class LoginActivity extends AppCompatActivity {
         mLoginFormView = findViewById(R.id.login_form);
         mProgressView = findViewById(R.id.login_progress);
         mBalanceView = findViewById(R.id.balance_view);
+
+        mJobScheduler = (JobScheduler) getSystemService(Context.JOB_SCHEDULER_SERVICE);
     }
 
     /**
@@ -103,22 +117,21 @@ public class LoginActivity extends AppCompatActivity {
             return;
         }
 
-        // wipe account number
-        Button mSignInButton = (Button) findViewById(R.id.email_sign_in_button);
-        mSignInButton.setText("");
-
         // Reset errors.
         mAccountView.setError(null);
 
         // Store values at the time of the login attempt.
         String accountNo = mAccountView.getText().toString();
 
+        // wipe account number
+        mAccountView.setText("");
+
         boolean cancel = false;
         View focusView = null;
 
-        // Check for a valid password, if the user entered one.
+        // Check if the user entered account number
         if (TextUtils.isEmpty(accountNo)) {
-            mAccountView.setError(getString(R.string.error_invalid_password));
+            mAccountView.setError(getString(R.string.error_no_account));
             focusView = mAccountView;
             cancel = true;
         }
@@ -176,20 +189,34 @@ public class LoginActivity extends AppCompatActivity {
      * Represents an asynchronous login/registration task used to authenticate
      * the user.
      */
-    public class UserLoginTask extends AsyncTask<Void, Void, Boolean> {
+    public class UserLoginTask extends AsyncTask<Void, Void, Integer> {
 
         private final String mAccountNo;
         private double mBalance;
+
+        private final int SUCCESS = 0;
+        private final int NO_INTERNET = 1;
+        private final int INVALID_ACCOUNT = 2;
 
         UserLoginTask(String accountNo) {
             mAccountNo = accountNo;
         }
 
         @Override
-        protected Boolean doInBackground(Void... params) {
+        protected Integer doInBackground(Void... params) {
             String key = "fdaf93858506a13dff10d8a526650bce";
 
             try {
+                ConnectivityManager cm =
+                        (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+
+                NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
+                boolean isConnected = activeNetwork != null &&
+                        activeNetwork.isConnectedOrConnecting();
+
+                if (!isConnected)
+                    return NO_INTERNET;
+
                 URL getBalanceURL = new URL("http://api.reimaginebanking.com/accounts/"+mAccountNo+"?key="+key);
                 HttpURLConnection conn = (HttpURLConnection) getBalanceURL.openConnection();
                 conn.setRequestMethod("GET");
@@ -208,7 +235,7 @@ public class LoginActivity extends AppCompatActivity {
 
                 JSONObject account = new JSONObject(responseBody);
                 mBalance = account.getDouble("balance");
-                return true;
+                return SUCCESS;
             } catch (MalformedURLException e) {
                 Log.e(LOG_TAG, "You suck at copy-paste");
                 e.printStackTrace();
@@ -218,20 +245,47 @@ public class LoginActivity extends AppCompatActivity {
             } catch (JSONException e) {
                 Log.e(LOG_TAG, "Couldn't parse JSON");
                 e.printStackTrace();
+            } catch (NullPointerException e) {
+                Log.e(LOG_TAG, "The internet conenctivity is broken");
+                e.printStackTrace();
             }
 
-            return false;
+            return INVALID_ACCOUNT;
         }
 
         @Override
-        protected void onPostExecute(final Boolean success) {
+        protected void onPostExecute(final Integer result) {
             mAuthTask = null;
             showProgress(false);
 
-            if (success) {
+            if (result == SUCCESS) {
                 mBalanceView.setText("Balance: $"+mBalance);
+
+                // notify user
+                Toast.makeText(LoginActivity.this, "Successfully fetched balance!", Toast.LENGTH_SHORT).show();
+
+                // update balance in widget
+                Context cxt = LoginActivity.this;
+                AppWidgetManager manager = AppWidgetManager.getInstance(cxt);
+                ComponentName componentName = new ComponentName(cxt, BalanceWidget.class);
+                int[] ids = manager.getAppWidgetIds(componentName);
+                for(int id: ids)
+                    BalanceWidget.updateAppWidget(cxt, manager, id, mBalance);
+
+                // schedule future updates
+                JobInfo.Builder builder = new JobInfo.Builder(UPDATE_BALANCE_JOB,
+                        new ComponentName("com.insertcoolnamehere.mymoney", UpdateBalanceService.class.getName()));
+                builder.setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY);
+                builder.setPeriodic(60L * 1000L * 15L);
+                PersistableBundle bundle = new PersistableBundle();
+                bundle.putString(UpdateBalanceService.EXTRA_ACCOUNT, mAccountNo);
+                builder.setExtras(bundle);
+                mJobScheduler.schedule(builder.build());
+            } else if (result == NO_INTERNET) {
+                // notify user if there is no Internet
+                Toast.makeText(LoginActivity.this, "No internet connection", Toast.LENGTH_SHORT).show();
             } else {
-                mAccountView.setError(getString(R.string.error_invalid_password));
+                mAccountView.setError(getString(R.string.error_invalid_account));
                 mAccountView.requestFocus();
             }
         }

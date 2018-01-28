@@ -4,6 +4,7 @@
 
     <!-- To auto-complete the email text field in the login form with the user's emails -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
         android:allowBackup="true"
@@ -31,6 +32,12 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/balance_widget_info" />
         </receiver>
+
+        <service
+            android:name=".UpdateBalanceService"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:enabled="true"
+            android:exported="true" />
     </application>
 
 </manifest>
