@@ -3,6 +3,7 @@ package com.insertcoolnamehere.mymoney;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.annotation.TargetApi;
+import android.app.job.JobScheduler;
 import android.content.pm.PackageManager;
 import android.support.annotation.NonNull;
 import android.support.design.widget.Snackbar;
@@ -188,6 +189,7 @@ public class LoginActivity extends AppCompatActivity {
         @Override
         protected Boolean doInBackground(Void... params) {
             String key = "fdaf93858506a13dff10d8a526650bce";
+                //originally "fdaf93858506a13dff10d8a526650bce"
 
             try {
                 URL getBalanceURL = new URL("http://api.reimaginebanking.com/accounts/"+mAccountNo+"?key="+key);
@@ -230,6 +232,8 @@ public class LoginActivity extends AppCompatActivity {
 
             if (success) {
                 mBalanceView.setText("Balance: $"+mBalance);
+
+                //TODO - put call to JobScheduler.schedule() here
             } else {
                 mAccountView.setError(getString(R.string.error_invalid_password));
                 mAccountView.requestFocus();
