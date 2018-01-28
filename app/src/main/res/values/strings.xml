@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">MyMoney</string>
+    <string name="app_name">My Money</string>
 
     <!-- Strings related to login -->
     <string name="prompt_account">Account Number</string>
