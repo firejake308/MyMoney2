@@ -233,7 +233,7 @@ public class LoginActivity extends AppCompatActivity {
             if (success) {
                 mBalanceView.setText("Balance: $"+mBalance);
 
-                //TODO - put call to JobScheduler.schedule() here
+                //TODO - insert call to JobScheduler.schedule() here
             } else {
                 mAccountView.setError(getString(R.string.error_invalid_password));
                 mAccountView.requestFocus();
