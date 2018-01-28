@@ -110,7 +110,7 @@ public class LoginActivity extends AppCompatActivity {
         View focusView = null;
 
         // Check for a valid password, if the user entered one.
-        if (!TextUtils.isEmpty(accountNo)) {
+        if (TextUtils.isEmpty(accountNo)) {
             mAccountView.setError(getString(R.string.error_invalid_password));
             focusView = mAccountView;
             cancel = true;
